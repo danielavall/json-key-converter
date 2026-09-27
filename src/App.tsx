@@ -1,66 +1,147 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import Editor from "@monaco-editor/react";
+import "./App.css";
+
+type ConversionFormat = "camel_to_snake" | "snake_to_camel";
+type Theme = "light" | "dark";
+
+const DEFAULT_JSON = `{
+  "userProfile": {
+    "firstName": "John",
+    "lastName": "Doe",
+    "emailAddress": "john.doe@example.com",
+    "isActive": true,
+    "loginAttempts": 5,
+    "favoriteColorsList": ["blue", "green"]
+  },
+  "subscriptionDetails": {
+    "planType": "premium",
+    "autoRenew": true
+  }
+}`;
 
 function App() {
-  const [inputJson, setInputJson] = useState("");
-  const [outputJson, setOutputJson] = useState("");
+  const [inputJson, setInputJson] = useState<string>(DEFAULT_JSON);
+  const [outputJson, setOutputJson] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [theme, setTheme] = useState<Theme>("light");
+  const [isSorted, setIsSorted] = useState<boolean>(false);
 
-  const handleConvert = async (format: "camel_to_snake" | "snake_to_camel") => {
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
+  const handleConvert = async (format: ConversionFormat) => {
     if (!inputJson.trim()) return;
-    
+
     try {
       const result: string = await invoke("convert_json_keys", {
         jsonStr: inputJson,
         format: format,
+        sortKeys: isSorted,
       });
       setOutputJson(result);
-      setErrorMsg(null);
+      setErrorMsg(null); 
     } catch (error) {
-      setErrorMsg("Invalid JSON format! Silakan periksa kembali sintaksnya.");
+      setErrorMsg("Oops! The JSON format looks invalid. Please double-check your syntax.");
       setOutputJson("");
     }
   };
 
+  const editorTheme = theme === "dark" ? "vs-dark" : "light";
+
   return (
-    <div style={{ padding: "2rem", maxWidth: "1000px", margin: "0 auto", fontFamily: "system-ui, sans-serif" }}>
-      <h1 style={{ textAlign: "center", marginBottom: "0.5rem" }}>JSON Key Converter</h1>
-      <p style={{ textAlign: "center", color: "#6b7280", marginTop: 0 }}>Secure Client-Side Processing (Rust + Wasm)</p>
-
-      <div style={{ display: "flex", gap: "1rem", justifyContent: "center", margin: "2rem 0" }}>
-        <button 
-          onClick={() => handleConvert("camel_to_snake")} 
-          style={{ cursor: "pointer", padding: "10px 20px", background: "#2563eb", color: "white", border: "none", borderRadius: "6px", fontWeight: "bold" }}>
-          camelCase to snake_case
-        </button>
-        <button 
-          onClick={() => handleConvert("snake_to_camel")} 
-          style={{ cursor: "pointer", padding: "10px 20px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", fontWeight: "bold" }}>
-          snake_case to camelCase
-        </button>
-      </div>
-
-      {errorMsg && <div style={{ color: "#ef4444", textAlign: "center", marginBottom: "1rem", fontWeight: 500 }}>{errorMsg}</div>}
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          <label style={{ fontWeight: 600 }}>Input JSON</label>
-          <textarea
-            style={{ width: "100%", height: "450px", padding: "1rem", fontFamily: "monospace", borderRadius: "6px", border: "1px solid #d1d5db", boxSizing: "border-box" }}
-            value={inputJson}
-            onChange={(e) => setInputJson(e.target.value)}
-            placeholder='{"exampleKey": "value"}'
-          />
+    <div className="app-container">
+      <header className="header">
+        <div className="title-group">
+          <h1>JSON Key Converter</h1>
+          <p>Format your JSON keys easily and securely.</p>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          <label style={{ fontWeight: 600 }}>Output JSON</label>
-          <textarea
-            readOnly
-            style={{ width: "100%", height: "450px", padding: "1rem", fontFamily: "monospace", borderRadius: "6px", border: "1px solid #d1d5db", backgroundColor: "#f3f4f6", boxSizing: "border-box" }}
-            value={outputJson}
-          />
+        <button className="theme-toggle" onClick={toggleTheme}>
+          {theme === "light" ? "🌙 Dark Mode" : "☀️ Light Mode"}
+        </button>
+      </header>
+
+      <main>
+        <div className="editor-grid">
+          <div className="editor-column">
+            <label>Your JSON Code</label>
+            <div className="editor-wrapper">
+              <Editor
+                height="450px"
+                defaultLanguage="json"
+                theme={editorTheme}
+                value={inputJson}
+                onChange={(value) => setInputJson(value || "")}
+                options={{
+                  minimap: { enabled: false },
+                  formatOnPaste: true,
+                  fontSize: 14,
+                  padding: { top: 16 }
+                }}
+              />
+            </div>
+          </div>
+          
+          <div className="editor-column">
+            <label>Result</label>
+            <div className="editor-wrapper">
+              <Editor
+                height="450px"
+                defaultLanguage="json"
+                theme={editorTheme}
+                value={outputJson}
+                options={{
+                  minimap: { enabled: false },
+                  readOnly: true,
+                  fontSize: 14,
+                  padding: { top: 16 }
+                }}
+              />
+            </div>
+          </div>
         </div>
-      </div>
+
+        <div className="action-section">
+          {errorMsg && (
+            <div className="error-banner">
+              {errorMsg}
+            </div>
+          )}
+          
+          {/* Fitur Sort By Alphabetically */}
+          <div className="options-section">
+            <label className="checkbox-label">
+              <input 
+                type="checkbox" 
+                checked={isSorted} 
+                onChange={(e) => setIsSorted(e.target.checked)} 
+              />
+              Sort keys alphabetically (A-Z)
+            </label>
+          </div>
+          
+          <div className="action-buttons">
+            <button 
+              className="btn btn-snake" 
+              onClick={() => handleConvert("camel_to_snake")}
+            >
+              Format to snake_case 🐍
+            </button>
+            <button 
+              className="btn btn-camel" 
+              onClick={() => handleConvert("snake_to_camel")}
+            >
+              Format to camelCase 🐫
+            </button>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
